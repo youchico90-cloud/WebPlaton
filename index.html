@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UniSchedule — Электрондық сабақ кестесі</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Жоғарғы панель -->
+  <header class="navbar no-print">
+    <div class="container nav-content">
+      <div class="logo">
+        <span class="logo-icon">🎓</span>
+        <div>
+          <h1>UniSchedule</h1>
+          <small>Электрондық сабақ кестесі</small>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <button class="nav-btn active" data-view="groupView">Топ кестесі</button>
+        <button class="nav-btn" data-view="teacherView">Оқытушы кестесі</button>
+        <button class="nav-btn admin-only hidden" data-view="adminView">Әкімші панелі</button>
+      </nav>
+
+      <div class="user-controls">
+        <!-- Қонақ күйі -->
+        <div id="guestControls" class="auth-buttons">
+          <button id="openLoginBtn" class="btn btn-outline">Кіру</button>
+          <button id="openAdminLoginBtn" class="btn btn-admin-outline">🛡️ Әкімші</button>
+          <button id="openRegisterBtn" class="btn btn-primary">Тіркелу</button>
+        </div>
+
+        <!-- Кірген пайдаланушы күйі -->
+        <div id="userControls" class="user-info hidden">
+          <div class="user-meta">
+            <span id="userNameDisplay" class="user-name"></span>
+            <span id="userRoleBadge" class="role-badge"></span>
+          </div>
+          <button id="logoutBtn" class="btn btn-danger-outline">Шығу</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- 1. ТОП КЕСТЕСІ -->
+    <section id="groupView" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2>Топ бойынша апталық кесте</h2>
+          <p class="subtitle" id="groupSubtitle">Топты, апта түрін және күнді таңдаңыз</p>
+        </div>
+        <div class="filters no-print">
+          <select id="groupSelect" class="input"></select>
+          <select id="groupWeekFilter" class="input">
+            <option value="all">Барлық апта</option>
+            <option value="Тақ апта">Тақ апта</option>
+            <option value="Жұп апта">Жұп апта</option>
+          </select>
+          <select id="groupDayFilter" class="input">
+            <option value="all">Барлық күндер</option>
+            <option value="Дүйсенбі">Дүйсенбі</option>
+            <option value="Сейсенбі">Сейсенбі</option>
+            <option value="Сәрсенбі">Сәрсенбі</option>
+            <option value="Бейсенбі">Бейсенбі</option>
+            <option value="Жұма">Жұма</option>
+            <option value="Сенбі">Сенбі</option>
+          </select>
+          <input type="text" id="groupSearchInput" class="input" placeholder="Пән, оқытушы, аудитория..." />
+          <button id="exportGroupCsvBtn" class="btn btn-outline">📥 Excel (CSV)</button>
+          <button onclick="window.print()" class="btn btn-outline">🖨️ Басып шығару</button>
+        </div>
+      </div>
+
+      <div id="groupScheduleContainer" class="schedule-grid"></div>
+    </section>
+
+    <!-- 2. ОҚЫТУШЫ КЕСТЕСІ ЖӘНЕ ОҚЫТУШЫНЫҢ КЕСТЕ ҚҰРУ ПАНЕЛІ -->
+    <section id="teacherView" class="view-section hidden">
+      <div class="section-header">
+        <div>
+          <h2>Оқытушының сабақ кестесі</h2>
+          <p class="subtitle" id="teacherSubtitle">Оқытушының апталық жүктемесі</p>
+        </div>
+        <div class="filters no-print">
+          <select id="teacherSelect" class="input"></select>
+          <select id="teacherWeekFilter" class="input">
+            <option value="all">Барлық апта</option>
+            <option value="Тақ апта">Тақ апта</option>
+            <option value="Жұп апта">Жұп апта</option>
+          </select>
+          <select id="teacherDayFilter" class="input">
+            <option value="all">Барлық күндер</option>
+            <option value="Дүйсенбі">Дүйсенбі</option>
+            <option value="Сейсенбі">Сейсенбі</option>
+            <option value="Сәрсенбі">Сәрсенбі</option>
+            <option value="Бейсенбі">Бейсенбі</option>
+            <option value="Жұма">Жұма</option>
+            <option value="Сенбі">Сенбі</option>
+          </select>
+          <button id="exportTeacherCsvBtn" class="btn btn-outline">📥 Excel (CSV)</button>
+          <button onclick="window.print()" class="btn btn-outline">🖨️ Басып шығару</button>
+        </div>
+      </div>
+
+      <!-- ТЕК ОҚЫТУШЫ КІРГЕНДЕ АШЫЛАТЫН САБАҚ ҚОСУ ПАНЕЛІ -->
+      <div id="teacherScheduleBuilderCard" class="card hidden no-print">
+        <div class="card-top-row">
+          <div>
+            <h3 id="teacherScheduleFormTitle">📅 Өз сабақ кестеңізді құру</h3>
+            <p class="subtitle">Топта немесе аудиторияда бос емес (занятталған) уақытқа сабақ қоюға болмайды.</p>
+          </div>
+        </div>
+
+        <div id="tchBusySlotsBox" class="busy-slots-box"></div>
+        <div id="teacherScheduleAlert" class="alert hidden"></div>
+
+        <form id="teacherScheduleForm" class="admin-form">
+          <input type="hidden" id="tchEditId" value="" />
+
+          <div class="form-group">
+            <label for="tchGroup">Топ</label>
+            <select id="tchGroup" class="input" required></select>
+          </div>
+
+          <div class="form-group">
+            <label for="tchDay">Апта күні</label>
+            <select id="tchDay" class="input" required>
+              <option value="Дүйсенбі">Дүйсенбі</option>
+              <option value="Сейсенбі">Сейсенбі</option>
+              <option value="Сәрсенбі">Сәрсенбі</option>
+              <option value="Бейсенбі">Бейсенбі</option>
+              <option value="Жұма">Жұма</option>
+              <option value="Сенбі">Сенбі</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="tchWeekType">Апта түрі</label>
+            <select id="tchWeekType" class="input" required>
+              <option value="Барлық апта">Барлық апта</option>
+              <option value="Тақ апта">Тақ апта</option>
+              <option value="Жұп апта">Жұп апта</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="tchStart">Басталу уақыты</label>
+            <input type="time" id="tchStart" class="input" value="12:00" required />
+          </div>
+
+          <div class="form-group">
+            <label for="tchEnd">Аяқталу уақыты</label>
+            <input type="time" id="tchEnd" class="input" value="13:20" required />
+          </div>
+
+          <div class="form-group">
+            <label for="tchSubject">Пән</label>
+            <select id="tchSubject" class="input" required></select>
+          </div>
+
+          <div class="form-group">
+            <label for="tchRoom">Аудитория</label>
+            <select id="tchRoom" class="input" required></select>
+          </div>
+
+          <div class="form-group">
+            <label for="tchType">Сабақ түрі</label>
+            <select id="tchType" class="input" required>
+              <option value="Дәріс">Дәріс</option>
+              <option value="Практика">Практика</option>
+              <option value="Зертхана">Зертхана</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="tchSubmitBtn" class="btn btn-primary">+ Сабақ қосу</button>
+            <button type="button" id="tchCancelEditBtn" class="btn btn-outline hidden">Болдырмау</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="teacherScheduleContainer" class="schedule-grid"></div>
+    </section>
+
+    <!-- 3. ӘКІМШІ ПАНЕЛІ -->
+    <section id="adminView" class="view-section hidden no-print">
+      <div class="section-header">
+        <div>
+          <h2>Әкімші панелі</h2>
+          <p class="subtitle">Топтарды, аудиторияларды, пәндерді, оқытушыларды және кестені басқару</p>
+        </div>
+        <button id="resetDataBtn" class="btn btn-danger-outline">Демо кестені қалпына келтіру</button>
+      </div>
+
+      <!-- Ішкі бөлімшелер (Tabs) -->
+      <div class="admin-tabs">
+        <button class="tab-btn active" data-tab="tabSchedule">📅 Сабақ кестесі</button>
+        <button class="tab-btn" data-tab="tabGroups">👥 Топтар</button>
+        <button class="tab-btn" data-tab="tabRooms">🚪 Аудиториялар</button>
+        <button class="tab-btn" data-tab="tabTeachers">👨‍🏫 Оқытушылар</button>
+        <button class="tab-btn" data-tab="tabSubjects">📚 Пәндер</button>
+      </div>
+
+      <div id="adminEntityAlert" class="alert hidden"></div>
+
+      <!-- TAB 1: КЕСТЕ ҚОСУ / ӨҢДЕУ -->
+      <div id="tabSchedule" class="admin-tab-content">
+        <div class="card">
+          <h3 id="scheduleFormTitle">Жаңа сабақ қосу</h3>
+          <div id="scheduleFormAlert" class="alert hidden"></div>
+
+          <form id="scheduleForm" class="admin-form">
+            <input type="hidden" id="editScheduleId" value="" />
+
+            <div class="form-group">
+              <label for="admGroup">Топ</label>
+              <select id="admGroup" class="input" required></select>
+            </div>
+
+            <div class="form-group">
+              <label for="admDay">Апта күні</label>
+              <select id="admDay" class="input" required>
+                <option value="Дүйсенбі">Дүйсенбі</option>
+                <option value="Сейсенбі">Сейсенбі</option>
+                <option value="Сәрсенбі">Сәрсенбі</option>
+                <option value="Бейсенбі">Бейсенбі</option>
+                <option value="Жұма">Жұма</option>
+                <option value="Сенбі">Сенбі</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="admWeekType">Апта түрі</label>
+              <select id="admWeekType" class="input" required>
+                <option value="Барлық апта">Барлық апта</option>
+                <option value="Тақ апта">Тақ апта</option>
+                <option value="Жұп апта">Жұп апта</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="admStart">Басталу уақыты</label>
+              <input type="time" id="admStart" class="input" value="09:00" required />
+            </div>
+
+            <div class="form-group">
+              <label for="admEnd">Аяқталу уақыты</label>
+              <input type="time" id="admEnd" class="input" value="10:20" required />
+            </div>
+
+            <div class="form-group">
+              <label for="admSubject">Пән</label>
+              <select id="admSubject" class="input" required></select>
+            </div>
+
+            <div class="form-group">
+              <label for="admTeacher">Оқытушы</label>
+              <select id="admTeacher" class="input" required></select>
+            </div>
+
+            <div class="form-group">
+              <label for="admRoom">Аудитория</label>
+              <select id="admRoom" class="input" required></select>
+            </div>
+
+            <div class="form-group">
+              <label for="admType">Сабақ түрі</label>
+              <select id="admType" class="input" required>
+                <option value="Дәріс">Дәріс</option>
+                <option value="Практика">Практика</option>
+                <option value="Зертхана">Зертхана</option>
+              </select>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="scheduleSubmitBtn" class="btn btn-primary">+ Кестеге қосу</button>
+              <button type="button" id="cancelEditBtn" class="btn btn-outline hidden">Болдырмау</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Барлық сабақтар тізімі</h3>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Күні / Апта</th>
+                  <th>Уақыты</th>
+                  <th>Топ</th>
+                  <th>Пән</th>
+                  <th>Түрі</th>
+                  <th>Оқытушы</th>
+                  <th>Аудитория</th>
+                  <th>Әрекет</th>
+                </tr>
+              </thead>
+              <tbody id="adminScheduleTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: ТОПТАР -->
+      <div id="tabGroups" class="admin-tab-content hidden">
+        <div class="card">
+          <h3>Жаңа топ қосу</h3>
+          <form id="addGroupForm" class="inline-form">
+            <input type="text" id="newGroupName" class="input" placeholder="Топ атауы (мыс: ИС-24)" required />
+            <input type="number" id="newGroupCourse" class="input" placeholder="Курс (1-4)" min="1" max="6" value="1" required />
+            <button type="submit" class="btn btn-primary">+ Топ қосу</button>
+          </form>
+          <div class="table-responsive mt-16">
+            <table class="data-table">
+              <thead><tr><th>Топ атауы</th><th>Курс</th><th>Әрекет</th></tr></thead>
+              <tbody id="groupsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: АУДИТОРИЯЛАР -->
+      <div id="tabRooms" class="admin-tab-content hidden">
+        <div class="card">
+          <h3>Жаңа аудитория қосу</h3>
+          <form id="addRoomForm" class="inline-form">
+            <input type="text" id="newRoomNumber" class="input" placeholder="Аудитория нөмірі / атауы (мыс: 308)" required />
+            <button type="submit" class="btn btn-primary">+ Аудитория қосу</button>
+          </form>
+          <div class="table-responsive mt-16">
+            <table class="data-table">
+              <thead><tr><th>Аудитория</th><th>Әрекет</th></tr></thead>
+              <tbody id="roomsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: ОҚЫТУШЫЛАР -->
+      <div id="tabTeachers" class="admin-tab-content hidden">
+        <div class="card">
+          <h3>Оқытушы қосу</h3>
+          <form id="addTeacherForm" class="inline-form">
+            <input type="text" id="newTeacherName" class="input" placeholder="Аты-жөні (мыс: Омаров С.К.)" required />
+            <input type="text" id="newTeacherDept" class="input" placeholder="Кафедра (мыс: Ақпараттық жүйелер)" required />
+            <button type="submit" class="btn btn-primary">+ Қосу</button>
+          </form>
+          <div class="table-responsive mt-16">
+            <table class="data-table">
+              <thead><tr><th>Аты-жөні</th><th>Кафедра</th><th>Әрекет</th></tr></thead>
+              <tbody id="teachersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: ПӘНДЕР -->
+      <div id="tabSubjects" class="admin-tab-content hidden">
+        <div class="card">
+          <h3>Пән қосу</h3>
+          <form id="addSubjectForm" class="inline-form">
+            <input type="text" id="newSubjectName" class="input" placeholder="Пән атауы" required />
+            <button type="submit" class="btn btn-primary">+ Қосу</button>
+          </form>
+          <div class="table-responsive mt-16">
+            <table class="data-table">
+              <thead><tr><th>Пән атауы</th><th>Әрекет</th></tr></thead>
+              <tbody id="subjectsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- КІРУ ЖӘНЕ ТІРКЕЛУ МОДАЛЬ ТЕРЕЗЕСІ -->
+  <div id="authModal" class="modal hidden no-print">
+    <div class="modal-content card">
+      <div class="modal-header">
+        <h3 id="authModalTitle">Жүйеге кіру</h3>
+        <button id="closeAuthBtn" class="close-btn">&times;</button>
+      </div>
+
+      <!-- Кіру / Тіркелу ауыстырғышы -->
+      <div class="auth-switcher">
+        <button type="button" id="switchToLogin" class="switch-btn active">Кіру</button>
+        <button type="button" id="switchToRegister" class="switch-btn">Тіркелу</button>
+      </div>
+
+      <div id="authAlert" class="alert hidden"></div>
+
+      <!-- КІРУ ФОРМАСЫ -->
+      <form id="loginForm" class="auth-form">
+        <div id="adminLoginBanner" class="admin-login-banner hidden">
+          🛡️ <strong>Әкімші ретінде кіру:</strong> Әкімші логині мен құпия сөзін енгізіңіз.
+        </div>
+
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" class="input" placeholder="email@uni.kz" required />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Құпия сөз</label>
+          <input type="password" id="loginPassword" class="input" placeholder="••••••" required />
+        </div>
+        <button type="submit" class="btn btn-primary full-width">Кіру</button>
+
+        <div class="demo-accounts">
+          <p><strong>Жылдам тексеру (Демо аккаунттар):</strong></p>
+          <div class="demo-quick-btns">
+            <button type="button" class="btn-sm" onclick="fillDemoLogin('admin@uni.kz', 'admin123')">🛡️ Әкімші</button>
+            <button type="button" class="btn-sm" onclick="fillDemoLogin('teacher@uni.kz', '123456')">👨‍🏫 Оқытушы</button>
+            <button type="button" class="btn-sm" onclick="fillDemoLogin('student@uni.kz', '123456')">🎓 Студент</button>
+          </div>
+          <small>Әкімші: <code>admin@uni.kz</code> / <code>admin123</code></small>
+          <small>Оқытушы: <code>teacher@uni.kz</code> / <code>123456</code></small>
+          <small>Студент: <code>student@uni.kz</code> / <code>123456</code></small>
+        </div>
+      </form>
+
+      <!-- ТІРКЕЛУ ФОРМАСЫ (ТЕК СТУДЕНТ ЖӘНЕ ОҚЫТУШЫ ҮШІН) -->
+      <form id="registerForm" class="auth-form hidden">
+        <div class="form-group">
+          <label for="regRole">Мәртебеңіз (тек Студент немесе Оқытушы)</label>
+          <select id="regRole" class="input" required>
+            <option value="student">Студент</option>
+            <option value="teacher">Оқытушы</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="regFullName">Аты-жөніңіз</label>
+          <input type="text" id="regFullName" class="input" placeholder="Мысалы: Серіков А.Б." required />
+        </div>
+
+        <div id="regStudentGroupWrapper" class="form-group">
+          <label for="regGroup">Оқу тобыңыз</label>
+          <select id="regGroup" class="input"></select>
+        </div>
+
+        <div id="regTeacherDeptWrapper" class="form-group hidden">
+          <label for="regDepartment">Кафедра атауы</label>
+          <input type="text" id="regDepartment" class="input" placeholder="Мысалы: Ақпараттық жүйелер" />
+        </div>
+
+        <div class="form-group">
+          <label for="regEmail">Email</label>
+          <input type="email" id="regEmail" class="input" placeholder="name@uni.kz" required />
+        </div>
+
+        <div class="form-group">
+          <label for="regPassword">Құпия сөз (кемінде 6 таңба)</label>
+          <input type="password" id="regPassword" class="input" minlength="6" placeholder="••••••" required />
+        </div>
+
+        <div class="form-group">
+          <label for="regPasswordConfirm">Құпия сөзді қайталаңыз</label>
+          <input type="password" id="regPasswordConfirm" class="input" minlength="6" placeholder="••••••" required />
+        </div>
+
+        <button type="submit" class="btn btn-primary full-width">Тіркелу</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
